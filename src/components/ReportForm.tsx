@@ -14,6 +14,8 @@ import { Picker } from "@react-native-picker/picker";
 import * as Location from "expo-location";
 import axios from "axios";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import { useReports } from "../context/ReportContext";
+import { useNavigation } from "@react-navigation/native";
 
 const SCAM_TYPES = [
   { label: "Phishing Attack", value: "phishing" },
@@ -35,6 +37,9 @@ const ReportForm: React.FC = () => {
 
   const apiKey = "AlzaSyOXk2Nx6XoKFqyR_rbE3EHEkvB0d24C3RV";
 
+  const { addReport } = useReports();
+  const navigation = useNavigation();
+
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -44,7 +49,6 @@ const ReportForm: React.FC = () => {
     })();
   }, []);
 
-  // Autocomplete
   const fetchPredictions = async (text: string) => {
     setAddress(text);
     if (text.length < 3) {
@@ -62,7 +66,6 @@ const ReportForm: React.FC = () => {
     }
   };
 
-  // Select suggestion
   const selectPrediction = async (placeId: string, description: string) => {
     setAddress(description);
     setPredictions([]);
@@ -83,7 +86,6 @@ const ReportForm: React.FC = () => {
     }
   };
 
-  // Detect location
   const useCurrentLocation = async () => {
     try {
       const loc = await Location.getCurrentPositionAsync({});
@@ -110,7 +112,6 @@ const ReportForm: React.FC = () => {
     }
   };
 
-  // Validate address manually
   const checkAddressLocation = async () => {
     if (!address) {
       Alert.alert("Error", "Please enter an address");
@@ -144,14 +145,13 @@ const ReportForm: React.FC = () => {
     setLocation({ latitude: 0, longitude: 0 });
   };
 
-  // Submit form
   const handleSubmit = async () => {
     if (!type || !description || !contactInfo || !address) {
       Alert.alert("Error", "All fields including address are required");
       return;
     }
     try {
-      await API.post("/reports", {
+      const res = await API.post("/reports", {
         type,
         description,
         contactInfo,
@@ -161,11 +161,17 @@ const ReportForm: React.FC = () => {
         longitude: location.longitude,
       });
 
+      // ✅ Instantly add new report to context
+      addReport(res.data);
+
       Alert.alert("Success", "Scam report submitted!");
       setType("");
       setDescription("");
       setContactInfo("");
       handleReset();
+
+      // ✅ Navigate to ScamMap to show marker
+      navigation.navigate("ScamMap");
     } catch (error) {
       Alert.alert("Error", "Failed to submit report");
     }

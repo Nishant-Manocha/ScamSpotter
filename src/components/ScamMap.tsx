@@ -5,24 +5,30 @@ import {
   ActivityIndicator,
   TextInput,
   Text,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
 } from "react-native";
-import MapView, { Marker, Callout } from "react-native-maps";
+import MapView, { Marker } from "react-native-maps";
 import API from "../api/api";
 import { FontAwesome5, MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
+import { useReports } from "../context/ReportContext";
 
 const ScamMap: React.FC = () => {
-  const [reports, setReports] = useState<any[]>([]);
+  const { reports, addReport } = useReports(); // ✅ Use context
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState("all");
   const [timeRange, setTimeRange] = useState("all");
+  const [selectedReport, setSelectedReport] = useState<any>(null);
 
+  // Initial fetch (only once)
   useEffect(() => {
     const fetchReports = async () => {
       try {
         const res = await API.get("/reports");
-        setReports(res.data);
+        res.data.forEach((report: any) => addReport(report));
       } catch (error) {
         console.error("Error fetching reports", error);
       } finally {
@@ -32,7 +38,7 @@ const ScamMap: React.FC = () => {
     fetchReports();
   }, []);
 
-  // Filtered reports based on search, type, and time
+  // Filtered reports
   const filteredReports = useMemo(() => {
     return reports.filter((report) => {
       const matchesSearch =
@@ -56,6 +62,7 @@ const ScamMap: React.FC = () => {
     });
   }, [reports, search, selectedType, timeRange]);
 
+  // Marker icon
   const renderMarkerIcon = (type: string) => {
     switch (type) {
       case "phishing":
@@ -67,7 +74,9 @@ const ScamMap: React.FC = () => {
       case "romance":
         return <Ionicons name="heart" size={28} color="pink" />;
       case "tax-fraud":
-        return <FontAwesome5 name="file-invoice-dollar" size={26} color="purple" />;
+        return (
+          <FontAwesome5 name="file-invoice-dollar" size={26} color="purple" />
+        );
       case "student-loan":
         return <Ionicons name="school" size={28} color="green" />;
       default:
@@ -85,7 +94,7 @@ const ScamMap: React.FC = () => {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Filters Section */}
+      {/* Filters */}
       <View style={styles.filterContainer}>
         <TextInput
           style={styles.searchInput}
@@ -136,30 +145,58 @@ const ScamMap: React.FC = () => {
       >
         {filteredReports.map((report, index) => (
           <Marker
-            key={index}
+            key={report._id || index}
             coordinate={{
               latitude: report.latitude,
               longitude: report.longitude,
             }}
+            onPress={() => setSelectedReport(report)} // ✅ Show modal
           >
             {renderMarkerIcon(report.type)}
-            <Callout>
-              <View style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <Ionicons name="warning" size={18} color="#fff" style={{ marginRight: 6 }} />
-                  <Text style={styles.cardTitle}>{report.type}</Text>
-                </View>
-                <Text style={styles.cardAddress}>{report.address}</Text>
-                <Text style={styles.cardDesc}>{report.description}</Text>
-                <View style={styles.scoreContainer}>
-                  <Text style={styles.scoreLabel}>Reported By:</Text>
-                  <Text style={styles.contact}>{report.contactInfo}</Text>
-                </View>
-              </View>
-            </Callout>
           </Marker>
         ))}
       </MapView>
+
+      {/* Report Modal */}
+      <Modal
+        visible={!!selectedReport}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSelectedReport(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ScrollView>
+              <Text style={styles.modalTitle}>
+                {selectedReport?.type?.toUpperCase()}
+              </Text>
+              <Text style={styles.modalLabel}>Description:</Text>
+              <Text>{selectedReport?.description}</Text>
+
+              <Text style={styles.modalLabel}>Reported By:</Text>
+              <Text>{selectedReport?.contactInfo}</Text>
+
+              <Text style={styles.modalLabel}>Address:</Text>
+              <Text>{selectedReport?.address}</Text>
+
+              <Text style={styles.modalLabel}>City:</Text>
+              <Text>{selectedReport?.city}</Text>
+
+              <Text style={styles.modalLabel}>Latitude:</Text>
+              <Text>{selectedReport?.latitude}</Text>
+
+              <Text style={styles.modalLabel}>Longitude:</Text>
+              <Text>{selectedReport?.longitude}</Text>
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setSelectedReport(null)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -184,27 +221,29 @@ const styles = StyleSheet.create({
     backgroundColor: "#f2f2f2",
     borderRadius: 8,
   },
-  card: {
-    width: 220,
-    backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 10,
-    elevation: 2,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    backgroundColor: "#dc3545",
-    padding: 5,
-    borderRadius: 6,
-    marginBottom: 6,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
     alignItems: "center",
   },
-  cardTitle: { color: "#fff", fontWeight: "bold", fontSize: 15 },
-  cardAddress: { fontSize: 13, color: "#555", marginBottom: 4 },
-  cardDesc: { fontSize: 12, color: "#777", marginBottom: 6 },
-  scoreContainer: { flexDirection: "row", alignItems: "center" },
-  scoreLabel: { fontSize: 12, color: "#555", marginRight: 4 },
-  contact: { fontSize: 12, color: "#007BFF", fontWeight: "600" },
+  modalContent: {
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 12,
+    width: "85%",
+    maxHeight: "70%",
+  },
+  modalTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 10 },
+  modalLabel: { fontWeight: "bold", marginTop: 8 },
+  closeButton: {
+    backgroundColor: "#007BFF",
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 10,
+    alignItems: "center",
+  },
+  closeButtonText: { color: "white", fontWeight: "bold" },
 });
 
 export default ScamMap;
